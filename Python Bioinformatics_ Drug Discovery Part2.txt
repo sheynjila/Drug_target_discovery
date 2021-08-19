@@ -1,0 +1,157 @@
+
+
+
+
+1. Install the conda and rdkit
+## The rdkit allows to compile and analyze the molecular discriptors from part1 ie molecule name and the conical smiles, IC50 with bioactivity classes 
+Use the following commands: 
+
+! wget https://repo.anaconda.com/miniconda/Miniconda3-py37_4.8.2-Linux-x86_64.sh
+! chmod +x Miniconda3-py37_4.8.2-Linux-x86_64.sh
+! bash ./Miniconda3-py37_4.8.2-Linux-x86_64.sh -b -f -p /usr/local
+! conda install -c rdkit rdkit -y
+import sys
+sys.path.append('/usr/local/lib/python3.7/site-packages/')
+
+2. Load the Preprocessed Bioactivity data ( from the google colab, upload the bioactictivity_data_preprocessed)
+
+Use the following lines of code: 
+
+import pandas as pd
+df = pd.read_csv('bioactivity_data_preprocessed.csv')
+df 
+
+
+
+3. Calculate Lipinski descriptors
+Christopher Lipinski, a scientist at Pfizer, came up with a set of rule-of-thumb for evaluating the druglikeness of compounds. Such druglikeness is based on the Absorption, Distribution, Metabolism and Excretion (ADME) that is also known as the pharmacokinetic profile. Lipinski analyzed all orally active FDA-approved drugs in the formulation of what is to be known as the Rule-of-Five or Lipinski's Rule.
+
+The Lipinski's Rule stated the following:
+
+Molecular weight < 500 Dalton
+Octanol-water partition coefficient (LogP) < 5
+Hydrogen bond donors < 5
+Hydrogen bond acceptors < 10
+
+4. Import libraries
+
+import numpy as np
+from rdkit import Chem
+from rdkit.Chem import Descriptors, Lipinski
+
+5. Calculate descriptors
+
+# Inspired by: https://codeocean.com/explore/capsules?query=tag:data-curation
+
+def lipinski(smiles, verbose=False):
+
+    moldata= []
+    for elem in smiles:
+        mol=Chem.MolFromSmiles(elem) 
+        moldata.append(mol)
+       
+    baseData= np.arange(1,1)
+    i=0  
+    for mol in moldata:        
+       
+        desc_MolWt = Descriptors.MolWt(mol)
+        desc_MolLogP = Descriptors.MolLogP(mol)
+        desc_NumHDonors = Lipinski.NumHDonors(mol)
+        desc_NumHAcceptors = Lipinski.NumHAcceptors(mol)
+           
+        row = np.array([desc_MolWt,
+                        desc_MolLogP,
+                        desc_NumHDonors,
+                        desc_NumHAcceptors])   
+    
+        if(i==0):
+            baseData=row
+        else:
+            baseData=np.vstack([baseData, row])
+        i=i+1      
+    
+    columnNames=["MW","LogP","NumHDonors","NumHAcceptors"]   
+    descriptors = pd.DataFrame(data=baseData,columns=columnNames)
+    
+    return descriptors
+
+6. Combine DataFrames
+# Let's take a look at the 2 DataFrames that will be combined.
+# Run the following codes to visualize the data that has so far been collected 
+df_lipinski = lipinski(df.canonical_smiles)
+df_lipinski
+df
+
+7. Now that we have two dataframes (df_lipinski and df), let's combine to on dataframe for further analysis
+
+df_combined = pd.concat([df,df_lipinski], axis=1)
+df_combined
+
+8. Convert IC50 to pIC50
+
+To allow IC50 data to be more uniformly distributed, we will convert IC50 to the negative logarithmic scale which is essentially -log10(IC50).
+
+This custom function pIC50() will accept a DataFrame as input and will:
+
+Take the IC50 values from the standard_value column and converts it from nM to M by multiplying the value by 10−9
+Take the molar value and apply -log10
+Delete the standard_value column and create a new pIC50 column
+
+# https://github.com/chaninlab/estrogen-receptor-alpha-qsar/blob/master/02_ER_alpha_RO5.ipynb
+
+import numpy as np
+
+def pIC50(input):
+    pIC50 = []
+
+    for i in input['standard_value_norm']:
+        molar = i*(10**-9) # Converts nM to M
+        pIC50.append(-np.log10(molar))
+
+    input['pIC50'] = pIC50
+    x = input.drop('standard_value_norm', 1)
+        
+    return x
+9. Point to note: Values greater than 100,000,000 will be fixed at 100,000,000 otherwise the negative logarithmic value will become negative.
+
+df_combined.standard_value.describe()
+
+-np.log10( (10**-9)* 100000000 )
+
+-np.log10( (10**-9)* 10000000000 )
+
+
+10. We will first apply the norm_value() function so that the values in the standard_value column is normalized.
+
+def norm_value(input):
+    norm = []
+
+    for i in input['standard_value']:
+        if i > 100000000:
+          i = 100000000
+        norm.append(i)
+
+    input['standard_value_norm'] = norm
+    x = input.drop('standard_value', 1)
+        
+    return x
+
+# Combine and visualize the data:
+
+df_norm = norm_value(df_combined)
+df_norm
+
+-------------------------------------------------
+11. Carryout a descriptive statistics
+
+df_norm.standard_value_norm.describe()
+
+
+12. Now clearly generate the final output
+
+df_final = pIC50(df_norm)
+df_final
+
+
+
+

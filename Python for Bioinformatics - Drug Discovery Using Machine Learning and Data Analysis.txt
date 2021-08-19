@@ -1,0 +1,242 @@
+Python for Bioinformatics - Drug Discovery Using Machine Learning and Data Analysis
+https://www.youtube.com/watch?v=jBlTQjcKuaY&t=205s 
+
+Part1:Data Collection:
+	i) Tartget Protein Search Using Chembl_webresource_client (python library)
+	ii) The chEMBL Database provides dataset (information of target protein and bioactivity)
+	iii) Data Pre-processing
+		Drop missing data
+		Drop duplicates
+		Label compounds according to bioactivity threshold
+	iv) iii above will give rise to a curative dataset (Curative Bioactivity data)
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+i) Installing libraries:
+Install the ChEMBL web service package so that we can retrieve bioactivity data from the ChEMBL Database.
+Use the following command:
+
+  ! pip install chembl_webresource_client
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ii) Importing libraries using the following commands:
+
+import pandas as pd
+from chembl_webresource_client.new_client import new_client
+pip install google-colab
+
+# Google colab is a kind of notebook that funcvtions like jupiter notebook. Allows Python to communicate with the database 
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+iii) Search for the taraget protein:
+# Target search for eg "coronavirus" for the sake of this tutorial
+
+# Target search for coronavirus
+target = new_client.target  
+target_query = target.search('coronavirus')
+targets = pd.DataFrame.from_dict(target_query)
+targets
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+iv) ### **Select and retrieve bioactivity data for *SARS coronavirus 3C-like proteinase* (fifth entry)**
+We will assign the fifth entry (which corresponds to the target protein, *coronavirus 3C-like proteinase*) to the ***selected_target*** variable 
+
+Use the following command: 
+
+selected_target = targets.target_chembl_id[4]
+selected_target
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+v) Retrieve coronavirus 3C-like proteinase (CHEMBL3927) that are reported as IC$_{50}$ values in nM (nanomolar) unit.
+Here, we will retrieve only bioactivity data for *coronavirus 3C-like proteinase* (CHEMBL3927) that are reported as IC$_{50}$ values in nM (nanomolar) unit.
+Use the following codes:
+
+activity = new_client.activity
+res = activity.filter(target_chembl_id=selected_target).filter(standard_type="IC50")
+df = pd.DataFrame.from_dict(res)
+df.head()
+df.head(3)
+df.head(3)
+df.tail(3)
+df.tail()
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+vi) Check if the dataframe has only compounds IC50. Use the following command:
+ 
+df.standard_type.unique()
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+vii) Finally we will save the resulting bioactivity data to a CSV file **bioactivity_data.csv**.
+
+df.to_csv('bioactivity_data.csv', index=False)
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+viii) Copying files to Google Drive
+Firstly, we need to mount the Google Drive into Colab so that we can have access to our Google adrive from within Colab.
+from google.colab import drive
+drive.mount('/content/gdrive/', force_remount=True)
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+xi) Next, we create a **data** folder in our **Colab Notebooks** folder on Google Drive.
+
+! mkdir "/content/gdrive/My Drive/Colab Notebooks/data2"
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+x) copy the bioactivity_data.csv to the created folder
+
+! cp bioactivity_data.csv "/content/gdrive/My Drive/Colab Notebooks/data"
+
+
+# Check if the file is present in the created folder
+! ls -l "/content/gdrive/My Drive/Colab Notebooks/data" 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+xi)Let's see the CSV files that we have so far.
+
+! ls 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+xii) Taking a glimpse of the **bioactivity_data.csv** file that we've just created.
+
+! head bioactivity_data.csv
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+xiii) Handling missing data
+If any compounds has missing value for the standard_value column then drop it.
+Use the following commands:  
+
+df2 = df[df.standard_value.notna()]
+df2
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ix) Data pre-processing of the bioactivity data
+Labeling compounds as either being active, inactive or intermediate
+The bioactivity data is in the IC50 unit. 
+Compounds having values of less than 1000 nM will be considered to be active while those greater than 10,000 nM will be considered to be inactive. 
+As for those values in between 1,000 and 10,000 nM will be referred to as intermediate.
+
+Use the following code:
+
+bioactivity_class = []
+for i in df2.standard_value:
+  if float(i) >= 10000:
+    bioactivity_class.append("inactive")
+  elif float(i) <= 1000:
+    bioactivity_class.append("active")
+  else:
+    bioactivity_class.append("intermediate")
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+x)Iterate the molecule_chembl_id to a list
+
+mol_cid = []
+for i in df2.molecule_chembl_id:
+  mol_cid.append(i)
+
+Iterate canonical_smiles to a list:
+
+canonical_smiles = []
+for i in df2.canonical_smiles:
+  canonical_smiles.append(i)
+
+### **Iterate *standard_value* to a list** 
+
+standard_value = []
+for i in df2.standard_value:
+  standard_value.append(i)
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+xi) Combine the four lists into a dataframe:
+
+data_tuples = list(zip(mol_cid, canonical_smiles, bioactivity_class, standard_value))
+df3 = pd.DataFrame( data_tuples,  columns=['molecule_chembl_id', 'canonical_smiles', 'bioactivity_class', 'standard_value'])
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+xii) Alternative method to create the table above:
+selection = ['molecule_chembl_id', 'canonical_smiles', 'standard_value']
+df3 = df2[selection]
+df3
+
+xiii) Save dataframe to CSV file
+
+pd.concat([df3,pd.Series(bioactivity_class)], axis=1)
+
+check if the files exist 
+
+! ls -l
+
+Copy new file into the google folder crteated:
+
+Let's copy to the Google Drive: 
+
+! cp bioactivity_preprocessed_data.csv "/content/gdrive/My Drive/Colab Notebooks/data"
+
+! ls "/content/gdrive/My Drive/Colab Notebooks/data"
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Part2:Exploratory Data Analysis:
+	i) Clean SMILES notation
+		Remove small oraginic compounds
+		Remover salts (CNCC1CC(N)CCC10.Cl.cl
+	ii) Export files as csv file: File #4 (2 class), File #5 ( 3 class)
+	iii) Calculate Lipinski's describtors: MW, logP, No. H-bond donor, No. H-bond acceptor, 
+	iv) Perform EDA (Box plot, Scatter plot, Statitiscal analysis
+Part3: Descriptor Calculation: 
+	i) Read in csv file as a data frame (File #4)
+	ii) Prepare input file to PADEL Descriptor
+	iii) Calculate fingerprints using PADEL-Descriptor  
+		Export as csv file: (File #6; Fingerprint + Class Label)
+Part4: Model building
+	i) Read csv file as Dataframe: (File #6; Fingerprint)
+	ii) Remove low variance features
+	iii) data Splitting
+	iv) Building a regeression Model  to make predictions
+	v) Make a scatter plot to establish the goodness of fit ( Preidcted Vs Actual)
+Part5: Compare several Machine Learning Models
+	i) Read in csv file as a Dataframe  (file #6)
+	ii) Remove low variance features
+	iii) Build several Regression Models
+	iv) Make a performamce comparison plot  (Model Vs R2)
+Part 6: Deploy Model
+	i) Build Regression Model from Part 4
+	ii) SMILES notation with inputing of molecule
+		Code the web app, save the model file ( Web app makes Priected Bioactivity)
+
+PART1: Data Collection: Hands-on
+
+Go to  https://github.com/dataprofessor 
+	Click on Code 
+	Click on Python
+	Click on CDD_ML_Part_1_bioactivity_data.ipynb
+	Right Click on the raw link and save into the computer (desktop or any folder)
+			(Google Code Lab can also be used)
+
+Follow thw Notebook
+1. Download the chembl_webresource_client using the command; pip install chembl_webresource_client
+
+
+
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
